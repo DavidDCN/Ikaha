@@ -3,6 +3,8 @@ import mqtt from 'mqtt';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 
+console.log("Node version:", process.version);
+console.log("ENV keys present:", Object.keys(process.env).filter(k => k.includes("SUPABASE") || k.includes("MQTT")));
 console.log("▶️ Initializing Locker Backend Bridge...");
 
 // Catch unexpected crashes or syntax bugs instantly
