@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IKAHA — Connect</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<style>
+:root {
+  --bg: #06091a;
+  --surface: #0b0f24;
+  --card: #101526;
+  --card-h: #151c35;
+  --bd: #1b2340;
+  --bd2: #26325a;
+  --accent: #3b82f6;
+  --accent-g: rgba(59,130,246,.12);
+  --accent-glow: rgba(59,130,246,.25);
+  --green: #22c55e;
+  --green-g: rgba(34,197,94,.1);
+  --red: #f43f5e;
+  --red-g: rgba(244,63,94,.1);
+  --amber: #f59e0b;
+  --t1: #dde4f0;
+  --t2: #8a97b0;
+  --t3: #3f5070;
+  --fh: 'Rajdhani', sans-serif;
+  --fb: 'Outfit', sans-serif;
+  --fm: 'DM Mono', monospace;
+  --r: 12px;
+  --rs: 7px;
+  --sidebar-w: 260px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--t1);
+  font-family: var(--fb);
+  font-size: 14px;
+  overflow-x: hidden;
+}
+
+/* ─── BG GRID ────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(59,130,246,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,130,246,.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── LAYOUT ─────────────────────────────────────────── */
+.shell { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+
+/* ─── SIDEBAR ────────────────────────────────────────── */
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: var(--sidebar-w);
+  background: rgba(11,15,36,.97);
+  backdrop-filter: blur(12px);
+  border-right: 1px solid var(--bd);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  z-index: 30;
+  transform: translateX(calc(-1 * var(--sidebar-w)));
+  transition: transform .32s cubic-bezier(.4,0,.2,1);
+}
+.sidebar.open { transform: translateX(0); }
+
+.sidebar-head {
+  padding: 22px 20px 16px;
+  border-bottom: 1px solid var(--bd);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sidebar-logo {
+  font-family: var(--fh);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.sidebar-logo span { color: var(--accent); }
+
+.sidebar-close {
+  width: 30px; height: 30px;
+  background: none; border: 1px solid var(--bd);
+  border-radius: 6px; cursor: pointer; color: var(--t3);
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.sidebar-close:hover { border-color: var(--bd2); color: var(--t1); }
+
+.nav-links { padding: 12px 10px; flex: 1; }
+
+.nav-sep {
+  font-family: var(--fm);
+  font-size: 10px;
+  color: var(--t3);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 14px 10px 5px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--rs);
+  color: var(--t2);
+  text-decoration: none;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: all .15s;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+  user-select: none;
+}
+.nav-item:hover { background: var(--card); color: var(--t1); }
+.nav-item.active { background: var(--accent-g); color: var(--accent); border-color: rgba(59,130,246,.18); }
+.nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+.nav-foot {
+  padding: 14px 16px;
+  border-top: 1px solid var(--bd);
+  font-family: var(--fm);
+  font-size: 11px;
+  color: var(--t3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nav-foot-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  flex-shrink: 0;
+}
+.nav-foot-dot.off { background: var(--t3); box-shadow: none; }
+
+/* ─── OVERLAY ────────────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,14,.65);
+  backdrop-filter: blur(3px);
+  z-index: 25;
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s;
+}
+.overlay.show { opacity: 1; pointer-events: all; }
+
+/* ─── MAIN ───────────────────────────────────────────── */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* ─── TOPBAR ─────────────────────────────────────────── */
+.topbar {
+  height: 58px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--bd);
+  display: flex;
+  align-items: center;
+  padding: 0 22px;
+  gap: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* Hamburger */
+.hbg {
+  width: 40px; height: 40px;
+  background: var(--card);
+  border: 1px solid var(--bd);
+  border-radius: var(--rs);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: all .2s;
+  flex-shrink: 0;
+  padding: 0;
+}
+.hbg:hover { border-color: var(--accent); background: var(--card-h); }
+.hbg.open { border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
+.hbg span {
+  display: block; width: 16px; height: 1.5px;
+  background: var(--t2); border-radius: 2px;
+  transition: all .25s cubic-bezier(.4,0,.2,1);
+}
+.hbg.open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); background: var(--accent); }
+.hbg.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.hbg.open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); background: var(--accent); }
+
+.topbar-logo {
+  font-family: var(--fh);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.topbar-logo span { color: var(--accent); }
+
+.topbar-sep { width: 1px; height: 20px; background: var(--bd); }
+
+.topbar-page {
+  font-family: var(--fm);
+  font-size: 11px;
+  color: var(--t3);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.conn-pill {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-family: var(--fm);
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid;
+  transition: all .3s;
+}
+.conn-pill.off {
+  color: var(--red);
+  border-color: rgba(244,63,94,.3);
+  background: var(--red-g);
+}
+.conn-pill.on {
+  color: var(--green);
+  border-color: rgba(34,197,94,.3);
+  background: var(--green-g);
+}
+.conn-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor;
+}
+.conn-pill.on .conn-dot { box-shadow: 0 0 6px var(--green); animation: glow-pulse 2s infinite; }
+@keyframes glow-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ─── PAGE CONTENT ───────────────────────────────────── */
+.content {
+  flex: 1;
+  padding: 32px 28px;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  animation: fadein .3s ease;
+}
+@keyframes fadein { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+.page-head {
+  margin-bottom: 28px;
+}
+.page-title {
+  font-family: var(--fh);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.page-sub {
+  font-size: 13px;
+  color: var(--t3);
+  font-family: var(--fm);
+}
+
+/* ─── CARDS GRID ─────────────────────────────────────── */
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media(max-width:840px) { .cards { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  overflow: hidden;
+  animation: fadein .4s ease both;
+}
+.card:nth-child(2) { animation-delay: .07s; }
+
+.card-head {
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--bd);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.card-head-icon {
+  width: 32px; height: 32px;
+  border-radius: var(--rs);
+  background: var(--accent-g);
+  border: 1px solid rgba(59,130,246,.2);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.card-head-icon svg { width: 15px; height: 15px; color: var(--accent); }
+.card-title {
+  font-family: var(--fh);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: .5px;
+}
+.card-sub-label {
+  font-family: var(--fm);
+  font-size: 10px;
+  color: var(--t3);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-left: auto;
+}
+
+.card-body { padding: 20px; }
+
+/* ─── TABS ───────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--bd);
+  border-radius: var(--rs);
+  padding: 3px;
+  margin-bottom: 20px;
+}
+.tab {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--t2);
+  cursor: pointer;
+  transition: all .15s;
+  text-align: center;
+  user-select: none;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.tab svg { width: 13px; height: 13px; }
+.tab.active { background: var(--card-h); color: var(--t1); }
+.tab-panel { display: none; animation: fadein .2s ease; }
+.tab-panel.active { display: block; }
+
+/* ─── QR READER ──────────────────────────────────────── */
+.qr-wrap {
+  position: relative;
+  background: #000;
+  border-radius: var(--rs);
+  overflow: hidden;
+  border: 1px solid var(--bd);
+  margin-bottom: 14px;
+  aspect-ratio: 4/3;
+  display: flex; align-items: center; justify-content: center;
+}
+#reader { width: 100%; }
+/* Override html5-qrcode default styling */
+#reader > * { border: none !important; }
+#reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+
+.qr-idle {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 32px;
+  color: var(--t3);
+  font-size: 12px; text-align: center;
+}
+.qr-idle svg { width: 40px; height: 40px; opacity: .35; }
+
+.qr-actions { display: flex; gap: 8px; margin-bottom: 14px; }
+
+.scan-success-overlay {
+  position: absolute; inset: 0;
+  background: rgba(34,197,94,.15);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 10px; z-index: 5;
+  animation: fadein .25s ease;
+}
+.scan-ok { font-size: 44px; }
+.scan-ok-text {
+  font-family: var(--fm);
+  font-size: 12px;
+  color: var(--green);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+/* ─── DIVIDER ────────────────────────────────────────── */
+.or-divider {
+  display: flex; align-items: center; gap: 10px;
+  margin: 18px 0;
+  color: var(--t3);
+  font-family: var(--fm);
+  font-size: 11px;
+}
+.or-divider::before, .or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--bd);
+}
+
+/* ─── FORMS ──────────────────────────────────────────── */
+.fgroup { margin-bottom: 14px; }
+.flabel {
+  display: block;
+  font-family: var(--fm);
+  font-size: 10px;
+  color: var(--t2);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 6px;
+}
+.finput {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--bd);
+  border-radius: var(--rs);
+  color: var(--t1);
+  font-size: 13px;
+  font-family: var(--fb);
+  outline: none;
+  transition: border-color .15s;
+}
+.finput:focus { border-color: var(--accent); }
+.finput::placeholder { color: var(--t3); }
+.finput.mono { font-family: var(--fm); letter-spacing: 2px; }
+
+/* ─── BUTTONS ────────────────────────────────────────── */
+.btn {
+  padding: 9px 18px;
+  border-radius: var(--rs);
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid;
+  transition: all .15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-family: var(--fb);
+  font-weight: 500;
+  user-select: none;
+}
+.btn:disabled { opacity: .35; cursor: not-allowed; }
+.btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  width: 100%;
+}
+.btn-primary:hover:not(:disabled) { opacity: .85; }
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--bd);
+  color: var(--t2);
+  flex: 1;
+}
+.btn-ghost:hover:not(:disabled) { border-color: var(--bd2); color: var(--t1); }
+
+.btn-accent-outline {
+  background: var(--accent-g);
+  border-color: rgba(59,130,246,.3);
+  color: var(--accent);
+  flex: 1;
+}
+.btn-accent-outline:hover:not(:disabled) { background: rgba(59,130,246,.18); }
+
+/* upload trick */
+.upload-btn-wrap { position: relative; flex: 1; }
+.upload-btn-wrap input[type=file] {
+  position: absolute; inset: 0;
+  opacity: 0; cursor: pointer; font-size: 999px;
+}
+
+/* ─── WIFI LIST ──────────────────────────────────────── */
+.wifi-help {
+  font-size: 12px; color: var(--t3); line-height: 1.6; margin-bottom: 16px;
+}
+
+.wifi-list { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+
+.wifi-item {
+  background: var(--surface);
+  border: 1px solid var(--bd);
+  border-radius: var(--rs);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all .15s;
+  user-select: none;
+}
+.wifi-item:hover { border-color: var(--bd2); background: var(--card-h); }
+.wifi-item.esp { border-left: 3px solid var(--accent); }
+
+.wifi-name { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+.wifi-name svg { width: 14px; height: 14px; color: var(--t3); flex-shrink: 0; }
+.wifi-item.esp .wifi-name svg { color: var(--accent); }
+.wifi-esp-tag {
+  font-family: var(--fm);
+  font-size: 9px;
+  color: var(--accent);
+  background: var(--accent-g);
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(59,130,246,.2);
+  margin-left: 4px;
+}
+
+.wifi-signal { display: flex; align-items: center; gap: 3px; }
+.bar {
+  width: 4px; border-radius: 1px;
+  background: var(--bd2);
+  transition: background .2s;
+}
+.bar.lit { background: var(--green); }
+.wifi-item.esp .bar.lit { background: var(--accent); }
+.bar:nth-child(1) { height: 6px; }
+.bar:nth-child(2) { height: 9px; }
+.bar:nth-child(3) { height: 12px; }
+.bar:nth-child(4) { height: 16px; }
+
+.wifi-pass-panel {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--bd);
+  animation: fadein .2s ease;
+}
+.wifi-pass-title {
+  font-family: var(--fm);
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 7px;
+}
+.wifi-pass-title svg { width: 12px; height: 12px; }
+
+/* ─── CONNECTED CARD ─────────────────────────────────── */
+.conn-success-card {
+  background: var(--green-g);
+  border: 1px solid rgba(34,197,94,.25);
+  border-radius: var(--rs);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  animation: fadein .3s ease;
+}
+.conn-success-icon { font-size: 24px; flex-shrink: 0; }
+.conn-success-label {
+  font-family: var(--fm);
+  font-size: 10px;
+  color: var(--green);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.conn-success-node {
+  font-family: var(--fm);
+  font-size: 14px;
+  color: var(--t1);
+  letter-spacing: 1px;
+}
+
+/* ─── LOADING ────────────────────────────────────────── */
+.loading-dots span {
+  display: inline-block;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin: 0 2px;
+  animation: bounce 1.2s infinite;
+}
+.loading-dots span:nth-child(2) { animation-delay: .2s; }
+.loading-dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes bounce { 0%,80%,100%{transform:scale(0);opacity:.5} 40%{transform:scale(1);opacity:1} }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── SIDEBAR ─────────────────────────────────────────── -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <div class="sidebar-logo">SMART<span>.</span>LOCK</div>
+      <button class="sidebar-close" id="sidebarClose">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="nav-links">
+      <div class="nav-sep">Monitor</div>
+      <a href="main.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        Home Console
+      </a>
+
+      <div class="nav-sep">Setup</div>
+      <a href="connect.html" class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/>
+          <line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+        </svg>
+        Connect System
+      </a>
+      <a href="schedule.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        Schedule Matrix
+      </a>
+    </div>
+
+    <div class="nav-foot">
+      <span class="nav-foot-dot off" id="navDot"></span>
+      <span id="navFootText">Not connected</span>
+    </div>
+  </nav>
+
+  <!-- Overlay -->
+  <div class="overlay" id="overlay"></div>
+
+  <!-- ── MAIN ───────────────────────────────────────────── -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <button class="hbg" id="hbg" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="topbar-logo">SMART<span>.</span>LOCK</div>
+      <div class="topbar-sep"></div>
+      <div class="topbar-page">Connect</div>
+
+      <div class="conn-pill off" id="connPill">
+        <span class="conn-dot"></span>
+        <span id="connPillText">Disconnected</span>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="content">
+      <div class="page-head">
+        <div class="page-title">Connection Matrix</div>
+        <div class="page-sub">Authenticate with your ESP32-S3 device via key, QR code, or local network discovery</div>
+      </div>
+
+      <!-- Connected success banner -->
+      <div id="connBanner" class="conn-success-card hidden">
+        <span class="conn-success-icon">🔗</span>
+        <div class="conn-success-info">
+          <div class="conn-success-label">● Active Connection</div>
+          <div class="conn-success-node" id="connNodeLabel">—</div>
+        </div>
+        <button class="btn btn-ghost" style="margin-left:auto;flex:unset;padding:6px 14px;font-size:12px" id="disconnectBtn">Disconnect</button>
+      </div>
+
+      <div class="cards">
+
+        <!-- ══ CARD 1: Direct Auth ════════════════════════ -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-head-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+              </svg>
+            </div>
+            <div class="card-title">Direct Authentication</div>
+            <span class="card-sub-label">Auth</span>
+          </div>
+          <div class="card-body">
+
+            <!-- Tabs -->
+            <div class="tabs">
+              <div class="tab active" data-tab="qr" onclick="switchTab('qr')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                  <rect x="3" y="14" width="7" height="7"/><path d="M14 14h3m4 0v3m0 4h-7m7-7v.01"/>
+                </svg>
+                QR Code
+              </div>
+              <div class="tab" data-tab="key" onclick="switchTab('key')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                </svg>
+                Passkey
+              </div>
+            </div>
+
+            <!-- QR Tab -->
+            <div class="tab-panel active" id="tab-qr">
+              <div class="qr-wrap" id="qrWrap">
+                <div id="reader"></div>
+                <div class="qr-idle" id="qrIdle">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/><path d="M14 14h3m4 0v3m0 4h-7m7-7v.01"/>
+                  </svg>
+                  <span>Camera idle — press <strong style="color:var(--t1)">Start Camera</strong> or upload a QR image</span>
+                </div>
+                <div id="scanSuccess" class="scan-success-overlay hidden">
+                  <span class="scan-ok">✅</span>
+                  <span class="scan-ok-text">Key Captured</span>
+                </div>
+              </div>
+
+              <div class="qr-actions">
+                <button class="btn btn-accent-outline" id="startCamBtn" onclick="startCamera()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+                    <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+                  </svg>
+                  Start Camera
+                </button>
+                <div class="upload-btn-wrap">
+                  <button class="btn btn-ghost">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    Upload QR
+                  </button>
+                  <input type="file" id="qrFileInput" accept="image/*">
+                </div>
+              </div>
+
+              <div class="or-divider">or enter captured key below</div>
+
+              <div class="fgroup">
+                <label class="flabel">Captured / Scanned Key</label>
+                <input class="finput mono" type="text" id="capturedKey" placeholder="Key auto-fills after QR scan…" readonly>
+              </div>
+            </div>
+
+            <!-- Passkey Tab -->
+            <div class="tab-panel" id="tab-key">
+              <div style="background:var(--surface);border:1px solid var(--bd);border-radius:var(--rs);padding:14px;margin-bottom:18px;">
+                <div style="font-family:var(--fm);font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">ℹ How to obtain your key</div>
+                <p style="font-size:12px;color:var(--t2);line-height:1.6">Find the passkey on the <strong style="color:var(--t1)">LCD display</strong> of the SmartLocker unit, or request it from your system administrator. Keys are formatted as <span style="font-family:var(--fm);color:var(--accent)">SL-XXXXXXXX</span>.</p>
+              </div>
+              <div class="fgroup">
+                <label class="flabel">ESP32 Passkey</label>
+                <input class="finput mono" type="password" id="manualKey" placeholder="SL-XXXXXXXX or custom key">
+              </div>
+            </div>
+
+            <!-- Connect button (shared) -->
+            <button class="btn btn-primary" id="connectDirectBtn" onclick="connectDirect()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+                <path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/>
+                <line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+              </svg>
+              Authenticate &amp; Connect
+            </button>
+
+          </div>
+        </div>
+
+        <!-- ══ CARD 2: Network Discovery ═════════════════ -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-head-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/>
+                <path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/>
+              </svg>
+            </div>
+            <div class="card-title">Network Discovery</div>
+            <span class="card-sub-label">LAN</span>
+          </div>
+          <div class="card-body">
+            <p class="wifi-help">Scan for nearby ESP32 Access Points. The SmartLocker device broadcasts its own AP when configured in standalone mode.</p>
+
+            <button class="btn btn-ghost" id="scanBtn" onclick="scanNetworks()" style="width:100%;margin-bottom:0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+                <path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/>
+                <path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/>
+              </svg>
+              Scan for Networks
+            </button>
+
+            <div id="wifiLoading" class="hidden" style="text-align:center;padding:22px 0;color:var(--t3);font-family:var(--fm);font-size:12px">
+              Scanning
+              <span class="loading-dots" style="margin-left:4px">
+                <span></span><span></span><span></span>
+              </span>
+            </div>
+
+            <div id="wifiList" class="wifi-list hidden"></div>
+
+            <div id="wifiPassPanel" class="wifi-pass-panel hidden">
+              <div class="wifi-pass-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/>
+                  <path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+                <span id="wifiPassTarget">Connecting to…</span>
+              </div>
+              <div class="fgroup">
+                <label class="flabel">Network Password</label>
+                <input class="finput" type="password" id="wifiPass" placeholder="Enter Wi-Fi password">
+              </div>
+              <button class="btn btn-primary" id="wifiConnectBtn" onclick="connectWifi()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Establish Connection
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+      </div><!-- /cards -->
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<script>
+// ── Sidebar toggle ─────────────────────────────────────
+const hbg       = document.getElementById('hbg');
+const sidebar   = document.getElementById('sidebar');
+const overlay   = document.getElementById('overlay');
+const closeBtn  = document.getElementById('sidebarClose');
+
+function openSidebar()  { sidebar.classList.add('open');  overlay.classList.add('show');  hbg.classList.add('open'); }
+function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('show'); hbg.classList.remove('open'); }
+
+hbg.addEventListener('click', () => sidebar.classList.contains('open') ? closeSidebar() : openSidebar());
+overlay.addEventListener('click', closeSidebar);
+closeBtn.addEventListener('click', closeSidebar);
+
+// ── Tabs ───────────────────────────────────────────────
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`[data-tab="${id}"]`).classList.add('active');
+  document.getElementById(`tab-${id}`).classList.add('active');
+}
+
+// ── Connection state ───────────────────────────────────
+const connPill     = document.getElementById('connPill');
+const connPillText = document.getElementById('connPillText');
+const connBanner   = document.getElementById('connBanner');
+const connNodeLbl  = document.getElementById('connNodeLabel');
+const navDot       = document.getElementById('navDot');
+const navFootText  = document.getElementById('navFootText');
+
+function setConnected(nodeId) {
+  sessionStorage.setItem('esp_connected', 'true');
+  sessionStorage.setItem('esp_id', nodeId);
+
+  connPill.classList.replace('off','on');
+  connPillText.textContent = nodeId;
+  connBanner.classList.remove('hidden');
+  connNodeLbl.textContent  = nodeId;
+  navDot.classList.remove('off');
+  navFootText.textContent  = nodeId;
+}
+
+document.getElementById('disconnectBtn').addEventListener('click', () => {
+  sessionStorage.removeItem('esp_connected');
+  sessionStorage.removeItem('esp_id');
+  connPill.classList.replace('on','off');
+  connPillText.textContent = 'Disconnected';
+  connBanner.classList.add('hidden');
+  navDot.classList.add('off');
+  navFootText.textContent  = 'Not connected';
+});
+
+// Restore on load
+window.addEventListener('DOMContentLoaded', () => {
+  if (sessionStorage.getItem('esp_connected') === 'true') {
+    setConnected(sessionStorage.getItem('esp_id') || 'ESP32');
+  }
+});
+
+// ── QR Scanner ────────────────────────────────────────
+const html5QrCode = new Html5Qrcode('reader');
+let cameraRunning = false;
+
+function onQrSuccess(text) {
+  document.getElementById('capturedKey').value = text;
+  document.getElementById('qrIdle').classList.add('hidden');
+  document.getElementById('scanSuccess').classList.remove('hidden');
+  if (cameraRunning) {
+    html5QrCode.stop().then(() => { cameraRunning = false; });
+  }
+}
+
+function startCamera() {
+  document.getElementById('qrIdle').classList.add('hidden');
+  document.getElementById('scanSuccess').classList.add('hidden');
+  const btn = document.getElementById('startCamBtn');
+  btn.textContent = 'Starting…';
+
+  Html5Qrcode.getCameras().then(devices => {
+    if (!devices || !devices.length) { alert('No cameras found.'); return; }
+    html5QrCode.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      onQrSuccess,
+      () => {}
+    ).then(() => {
+      cameraRunning = true;
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="1" y1="1" x2="23" y2="23"/><path d="M21 21H3a2 2 0 01-2-2V8a2 2 0 012-2h3m3-3h6l2 3h4a2 2 0 012 2v9.34"/></svg> Stop Camera`;
+      btn.onclick = stopCamera;
+    }).catch(() => alert('Camera permission denied.'));
+  }).catch(() => alert('Could not access cameras.'));
+}
+
+function stopCamera() {
+  if (cameraRunning) {
+    html5QrCode.stop().then(() => {
+      cameraRunning = false;
+      document.getElementById('qrIdle').classList.remove('hidden');
+      const btn = document.getElementById('startCamBtn');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg> Start Camera`;
+      btn.onclick = startCamera;
+    });
+  }
+}
+
+document.getElementById('qrFileInput').addEventListener('change', e => {
+  if (!e.target.files.length) return;
+  html5QrCode.scanFile(e.target.files[0], true)
+    .then(text => onQrSuccess(text))
+    .catch(() => alert('Could not decode QR from image. Ensure the QR is clear and well-lit.'));
+});
+
+// ── Direct connect ────────────────────────────────────
+function connectDirect() {
+  const activeTab = document.querySelector('.tab.active').dataset.tab;
+  const key = activeTab === 'qr'
+    ? document.getElementById('capturedKey').value.trim()
+    : document.getElementById('manualKey').value.trim();
+
+  if (key.length < 4) { alert('Please enter or scan a valid key first.'); return; }
+
+  const btn = document.getElementById('connectDirectBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loading-dots"><span></span><span></span><span></span></span> Authenticating…`;
+
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg> Authenticate &amp; Connect`;
+    setConnected(key.slice(0,16));
+  }, 1400);
+}
+
+// ── WiFi scan ─────────────────────────────────────────
+const MOCK_NETWORKS = [
+  { ssid: 'Home_Router_5G',        locked: true,  signal: 3, esp: false },
+  { ssid: 'ESP32-SmartLocker-AP',  locked: true,  signal: 4, esp: true  },
+  { ssid: 'Campus_Guest',          locked: false, signal: 2, esp: false },
+  { ssid: 'Office_2.4G',           locked: true,  signal: 1, esp: false },
+];
+
+function sigBars(n, esp) {
+  return [1,2,3,4].map(i =>
+    `<div class="bar ${i <= n ? 'lit' : ''}"></div>`
+  ).join('');
+}
+
+function scanNetworks() {
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  document.getElementById('wifiList').classList.add('hidden');
+  document.getElementById('wifiPassPanel').classList.add('hidden');
+  document.getElementById('wifiLoading').classList.remove('hidden');
+
+  setTimeout(() => {
+    document.getElementById('wifiLoading').classList.add('hidden');
+    btn.disabled = false;
+
+    const list = document.getElementById('wifiList');
+    list.classList.remove('hidden');
+    list.innerHTML = MOCK_NETWORKS.map(n => `
+      <div class="wifi-item ${n.esp ? 'esp' : ''}" onclick="promptWifi('${n.ssid}')">
+        <div class="wifi-name">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            ${n.locked
+              ? '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>'
+              : '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/>'}
+          </svg>
+          <span>${n.ssid}</span>
+          ${n.esp ? '<span class="wifi-esp-tag">ESP32</span>' : ''}
+        </div>
+        <div class="wifi-signal">${sigBars(n.signal, n.esp)}</div>
+      </div>
+    `).join('');
+  }, 1600);
+}
+
+let selectedSsid = '';
+function promptWifi(ssid) {
+  selectedSsid = ssid;
+  document.getElementById('wifiPassTarget').textContent = ssid;
+  document.getElementById('wifiPass').value = '';
+  document.getElementById('wifiPassPanel').classList.remove('hidden');
+  document.getElementById('wifiPass').focus();
+}
+
+function connectWifi() {
+  const pass = document.getElementById('wifiPass').value.trim();
+  if (pass.length < 1) { alert('Enter the network password.'); return; }
+
+  const btn = document.getElementById('wifiConnectBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loading-dots"><span></span><span></span><span></span></span> Connecting…`;
+
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="20 6 9 17 4 12"/></svg> Establish Connection`;
+    document.getElementById('wifiPassPanel').classList.add('hidden');
+    setConnected(selectedSsid);
+  }, 1300);
+}
+</script>
+</body>
+</html>
