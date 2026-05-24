@@ -2,6 +2,7 @@ import dotenv from '@dotenvx/dotenvx';
 import mqtt from 'mqtt';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
+import http from 'http';
 
 console.log("Node version:", process.version);
 console.log("ENV keys present:", Object.keys(process.env).filter(k => k.includes("SUPABASE") || k.includes("MQTT")));
@@ -15,7 +16,6 @@ process.on('uncaughtException', (err) => {
 
 dotenv.config(); // Loads a local .env if present
 
-// Clean validation: Check process.env directly, which works on both local and Render!
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const mqttBrokerUrl = process.env.MQTT_BROKER_URL;
@@ -32,14 +32,14 @@ if (!mqttBrokerUrl) {
 console.log("✅ Environment validation passed successfully.");
 
 console.log("🔗 Connecting to Supabase at:", supabaseUrl);
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-console.log("📡 Attempting connection to MQTT Broker:", process.env.MQTT_BROKER_URL);
-const mqttClient = mqtt.connect(process.env.MQTT_BROKER_URL, {
+console.log("📡 Attempting connection to MQTT Broker:", mqttBrokerUrl);
+const mqttClient = mqtt.connect(mqttBrokerUrl, {
     username: process.env.MQTT_USERNAME,
     password: process.env.MQTT_PASSWORD,
     rejectUnauthorized: true,
-    connectTimeout: 5000 // Give up after 5 seconds instead of hanging
+    connectTimeout: 5000
 });
 
 mqttClient.on('connect', () => {
@@ -59,31 +59,57 @@ mqttClient.on('close', () => {
 mqttClient.on('message', async (topic, message) => {
   try {
     const payload = JSON.parse(message.toString());
-    const lockerId = topic.split('/')[1];
+    
+    // Parse lockerId as a clean integer base-10 to prevent data-type query mismatches
+    const lockerId = parseInt(topic.split('/')[1], 10);
+    if (isNaN(lockerId)) {
+        console.error(`❌ Invalid locker topic path structure: ${topic}`);
+        return;
+    }
 
     // ==========================================
-    // 🔒 DEPOSIT FLOW
+    // 🔒 DEPOSIT FLOW (With Vacancy Guard Check)
     // ==========================================
     if (topic.endsWith('/deposit')) {
       console.log(`📥 Ingested deposit payload for locker ${lockerId}`);
 
-      // Extract details, providing fallback defaults if fields are missing
-      const studentName = payload.studentName || 'Unknown Admin/User';
-      const studentNumber = payload.studentNumber || 'N/A';
-      const courseSection = payload.courseSection || 'N/A';
-      const rawPin = payload.pin;
+      // 1. Check if the locker is already occupied in the system
+      const { data: lockerStatus, error: lockerCheckError } = await supabase
+        .from('lockers')
+        .select('status')
+        .eq('id', lockerId)
+        .maybeSingle();
 
-      if (!rawPin) {
-        console.error("❌ Drop canceled: No PIN provided in payload.");
+      if (lockerCheckError) {
+        console.error("❌ Database verification failed:", lockerCheckError.message);
         return;
       }
 
-      // 1. Hash the PIN
+      // Safeguard: Block if status column is explicitly set to 'occupied'
+      if (lockerStatus && lockerStatus.status === 'occupied') {
+        console.log(`🚫 REJECTED: Deposit hit Locker ${lockerId}, but it is ALREADY OCCUPIED!`);
+        mqttClient.publish(`lockers/${lockerId}/display`, JSON.stringify({ status: "ERROR", msg: "Locker Occupied" }));
+        return; 
+      }
+
+      // 2. Validate input PIN
+      const rawPin = payload.pin;
+      if (!rawPin) {
+        console.error("❌ Drop canceled: No PIN provided in payload.");
+        mqttClient.publish(`lockers/${lockerId}/display`, JSON.stringify({ status: "ERROR", msg: "No PIN Given" }));
+        return;
+      }
+
+      const studentName = payload.studentName || 'Unknown Admin/User';
+      const studentNumber = payload.studentNumber || 'N/A';
+      const courseSection = payload.courseSection || 'N/A';
+
+      // 3. Hash the PIN
       const salt = await bcrypt.genSalt(10);
       const hashedPin = await bcrypt.hash(rawPin, salt);
 
-      // 2. Insert into Supabase (Matching your column names)
-      const { data, error } = await supabase
+      // 4. Create the active transaction row
+      const { error: txError } = await supabase
         .from('transactions')
         .insert([
           { 
@@ -97,18 +123,19 @@ mqttClient.on('message', async (topic, message) => {
           }
         ]);
 
-      if (error) {
-        console.error("❌ Supabase DB Insert Failed:", error.message);
+      if (txError) {
+        console.error("❌ Supabase DB Insert Failed:", txError.message);
         return;
       }
 
-      // 3. Mark locker as occupied
+      // 5. Explicitly flag the physical locker slot status as occupied
       await supabase
         .from('lockers')
-        .update({ is_occupied: true })
+        .update({ status: 'occupied' })
         .eq('id', lockerId);
 
       console.log(`🔒 Locker ${lockerId} successfully occupied by ${studentNumber}`);
+      mqttClient.publish(`lockers/${lockerId}/display`, JSON.stringify({ status: "SUCCESS", msg: "Locked" }));
     }
 
     // ==========================================
@@ -118,42 +145,54 @@ mqttClient.on('message', async (topic, message) => {
       console.log(`📥 Ingested claim payload for locker ${lockerId}`);
       const typedPin = payload.pin;
 
-      // 1. Find the active transaction for this locker
-      const { data: transaction, error } = await supabase
+      if (!typedPin) {
+         console.error("❌ Claim canceled: No PIN typed.");
+         mqttClient.publish(`lockers/${lockerId}/display`, JSON.stringify({ status: "ERROR", msg: "Enter PIN" }));
+         return;
+      }
+
+      // 1. Search for the single active transaction row matching this numerical locker ID
+      const { data: transaction, error: dbError } = await supabase
         .from('transactions')
         .select('*')
         .eq('locker_id', lockerId)
         .eq('status', 'active')
-        .maybeSingle(); // Prevents crashing if 0 rows are found
+        .maybeSingle();
 
-      if (error || !transaction) {
-        console.log(`⚠️ Claim attempt on empty or error locker slot ${lockerId}`);
-        mqttClient.publish(`lockers/${lockerId}/control`, JSON.stringify({ command: "DENIED", reason: "Slot vacant" }));
+      if (dbError) {
+        console.error("❌ Supabase Query Error during claim lookup:", dbError.message);
         return;
       }
 
-      // 2. Validate PIN
+      if (!transaction) {
+        console.log(`⚠️ Claim attempt on empty or error locker slot ${lockerId}`);
+        mqttClient.publish(`lockers/${lockerId}/display`, JSON.stringify({ status: "ERROR", msg: "No Active Session" }));
+        return;
+      }
+
+      // 2. Validate user's typed PIN against the stored hash
       const isMatch = await bcrypt.compare(typedPin, transaction.pin_hash);
 
       if (isMatch) {
-        // 3. SUCCESS! Update the transaction to completed
+        // 3. Close the history row item
         await supabase
           .from('transactions')
           .update({ status: 'completed', claimed_at: new Date() })
           .eq('id', transaction.id);
 
-        // 4. THIS IS THE "VACANTING" STEP: Set locker status back to false
+        // 4. Reset the locker status flag back to 'vacant'
         await supabase
           .from('lockers')
-          .update({ is_occupied: false })
+          .update({ status: 'vacant' })
           .eq('id', lockerId);
 
-        // 5. Fire MQTT unlock command to ESP32
+        // 5. Dispatched outputs over MQTT to hardware relays and LCD displays
         mqttClient.publish(`lockers/${lockerId}/control`, JSON.stringify({ command: "UNLOCK" }));
-        console.log(`🔓 SUCCESS: Locker ${lockerId} is now VACANT. Unlock payload sent.`);
+        mqttClient.publish(`lockers/${lockerId}/display`, JSON.stringify({ status: "SUCCESS", msg: "Unlocked" }));
+        console.log(`🔓 SUCCESS: Locker ${lockerId} successfully claimed and is now VACANT.`);
       } else {
-        console.log(`❌ Invalid PIN attempt for Locker ${lockerId}`);
-        mqttClient.publish(`lockers/${lockerId}/control`, JSON.stringify({ command: "DENIED", reason: "Wrong PIN" }));
+        console.log(`❌ Invalid PIN attempt typed for Locker ${lockerId}`);
+        mqttClient.publish(`lockers/${lockerId}/display`, JSON.stringify({ status: "ERROR", msg: "Invalid PIN" }));
       }
     }
 
@@ -162,72 +201,14 @@ mqttClient.on('message', async (topic, message) => {
   }
 });
 
-async function handleDeposit(lockerId, data) {
-    const { studentName, studentNumber, courseSection, pin } = data;
-    const pinHash = await bcrypt.hash(pin, 10);
-
-    const { error: txError } = await supabase
-        .from('transactions')
-        .insert([{
-            student_name: studentName,
-            student_number: studentNumber,
-            course_section: courseSection,
-            locker_id: lockerId,
-            pin_hash: pinHash,
-            status: 'active'
-        }]);
-
-    if (txError) {
-        console.error("❌ Supabase DB Insert Failed:", txError.message);
-        return;
-    }
-
-    await supabase.from('lockers').update({ status: 'occupied' }).eq('id', lockerId);
-    console.log(`🔒 Locker ${lockerId} registered to ${studentNumber}`);
-    mqttClient.publish(`lockers/${lockerId}/display`, JSON.stringify({ status: "SUCCESS", msg: "Locked" }));
-}
-
-async function handleClaim(lockerId, data) {
-    const { pin } = data;
-
-    const { data: tx, error: txError } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('locker_id', lockerId)
-        .eq('status', 'active')
-        .maybeSingle();
-
-    if (txError || !tx) {
-        console.log(`⚠️ Claim attempt on empty or error locker slot ${lockerId}`);
-        mqttClient.publish(`lockers/${lockerId}/display`, JSON.stringify({ status: "ERROR", msg: "No Active Session" }));
-        return;
-    }
-
-    const pinMatch = await bcrypt.compare(pin, tx.pin_hash);
-
-    if (pinMatch) {
-        await supabase.from('transactions').update({ status: 'completed', released_at: new Date() }).eq('id', tx.id);
-        await supabase.from('lockers').update({ status: 'vacant' }).eq('id', lockerId);
-        
-        mqttClient.publish(`lockers/${lockerId}/control`, JSON.stringify({ command: "UNLOCK" }));
-        mqttClient.publish(`lockers/${lockerId}/display`, JSON.stringify({ status: "SUCCESS", msg: "Unlocked" }));
-        console.log(`🔓 Locker ${lockerId} successfully claimed.`);
-    } else {
-        mqttClient.publish(`lockers/${lockerId}/display`, JSON.stringify({ status: "ERROR", msg: "Invalid PIN" }));
-        console.log(`⚠️ Wrong PIN entered for Locker ${lockerId}`);
-    }
-}
-
-// 1. Change 'require' to modern ES 'import' syntax
-import http from 'http';
-
-// 2. Create the minimal web server to satisfy Render's health checks
+// ==========================================
+// 🌍 HEALTH CHECK WEB SERVER (For Render Free Tier)
+// ==========================================
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('iKaha Backend Bridge is Active and Running!\n');
 });
 
-// 3. Bind to the port provided by Render
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`🌍 Health check web server is listening on port ${PORT}`);
