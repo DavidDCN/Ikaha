@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartLocker — Home Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #06091a;
+  --surface: #0b0f24;
+  --card: #101526;
+  --card-h: #151c35;
+  --bd: #1b2340;
+  --bd2: #26325a;
+  --accent: #3b82f6;
+  --accent-g: rgba(59,130,246,.12);
+  --accent-glow: rgba(59,130,246,.25);
+  --green: #22c55e;
+  --green-g: rgba(34,197,94,.1);
+  --green-bd: rgba(34,197,94,.25);
+  --red: #f43f5e;
+  --red-g: rgba(244,63,94,.1);
+  --red-bd: rgba(244,63,94,.25);
+  --amber: #f59e0b;
+  --amber-g: rgba(245,158,11,.1);
+  --t1: #dde4f0;
+  --t2: #8a97b0;
+  --t3: #3f5070;
+  --fh: 'Rajdhani', sans-serif;
+  --fb: 'Outfit', sans-serif;
+  --fm: 'DM Mono', monospace;
+  --r: 12px;
+  --rs: 7px;
+  --sidebar-w: 260px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--t1);
+  font-family: var(--fb);
+  font-size: 14px;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(59,130,246,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,130,246,.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── LAYOUT ─────────────────────────────────────────── */
+.shell { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+
+/* ─── SIDEBAR ────────────────────────────────────────── */
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: var(--sidebar-w);
+  background: rgba(11,15,36,.97);
+  backdrop-filter: blur(12px);
+  border-right: 1px solid var(--bd);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  z-index: 30;
+  transform: translateX(calc(-1 * var(--sidebar-w)));
+  transition: transform .32s cubic-bezier(.4,0,.2,1);
+}
+.sidebar.open { transform: translateX(0); }
+
+.sidebar-head {
+  padding: 22px 20px 16px;
+  border-bottom: 1px solid var(--bd);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sidebar-logo { font-family: var(--fh); font-size: 20px; font-weight: 700; letter-spacing: 2px; }
+.sidebar-logo span { color: var(--accent); }
+
+.sidebar-close {
+  width: 30px; height: 30px;
+  background: none; border: 1px solid var(--bd);
+  border-radius: 6px; cursor: pointer; color: var(--t3);
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.sidebar-close:hover { border-color: var(--bd2); color: var(--t1); }
+.sidebar-close svg { width: 14px; height: 14px; }
+
+.nav-links { padding: 12px 10px; flex: 1; }
+.nav-sep {
+  font-family: var(--fm); font-size: 10px; color: var(--t3);
+  letter-spacing: 1.5px; text-transform: uppercase; padding: 14px 10px 5px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--rs);
+  color: var(--t2); text-decoration: none; font-size: 13.5px;
+  cursor: pointer; transition: all .15s; margin-bottom: 2px;
+  border: 1px solid transparent; user-select: none;
+}
+.nav-item:hover { background: var(--card); color: var(--t1); }
+.nav-item.active { background: var(--accent-g); color: var(--accent); border-color: rgba(59,130,246,.18); }
+.nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+.nav-foot {
+  padding: 14px 16px; border-top: 1px solid var(--bd);
+  font-family: var(--fm); font-size: 11px; color: var(--t3);
+  display: flex; align-items: center; gap: 8px;
+}
+.nav-foot-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--t3); flex-shrink: 0; }
+.nav-foot-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+/* ─── OVERLAY ────────────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,14,.65);
+  backdrop-filter: blur(3px);
+  z-index: 25; opacity: 0; pointer-events: none;
+  transition: opacity .3s;
+}
+.overlay.show { opacity: 1; pointer-events: all; }
+
+/* ─── MAIN ───────────────────────────────────────────── */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* ─── TOPBAR ─────────────────────────────────────────── */
+.topbar {
+  height: 58px; background: var(--surface); border-bottom: 1px solid var(--bd);
+  display: flex; align-items: center; padding: 0 22px; gap: 14px;
+  position: sticky; top: 0; z-index: 10;
+}
+
+.hbg {
+  width: 40px; height: 40px; background: var(--card);
+  border: 1px solid var(--bd); border-radius: var(--rs);
+  cursor: pointer; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 5px;
+  transition: all .2s; flex-shrink: 0; padding: 0;
+}
+.hbg:hover { border-color: var(--accent); background: var(--card-h); }
+.hbg.open { border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
+.hbg span {
+  display: block; width: 16px; height: 1.5px;
+  background: var(--t2); border-radius: 2px;
+  transition: all .25s cubic-bezier(.4,0,.2,1);
+}
+.hbg.open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); background: var(--accent); }
+.hbg.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.hbg.open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); background: var(--accent); }
+
+.topbar-logo { font-family: var(--fh); font-size: 20px; font-weight: 700; letter-spacing: 2px; }
+.topbar-logo span { color: var(--accent); }
+.topbar-sep { width: 1px; height: 20px; background: var(--bd); }
+.topbar-page { font-family: var(--fm); font-size: 11px; color: var(--t3); letter-spacing: 1px; text-transform: uppercase; }
+
+.conn-pill {
+  margin-left: auto; display: flex; align-items: center; gap: 7px;
+  padding: 5px 14px; border-radius: 20px; font-family: var(--fm);
+  font-size: 11px; font-weight: 500; border: 1px solid; transition: all .3s;
+}
+.conn-pill.off { color: var(--red); border-color: rgba(244,63,94,.3); background: var(--red-g); }
+.conn-pill.on  { color: var(--green); border-color: rgba(34,197,94,.3); background: var(--green-g); }
+.conn-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.conn-pill.on .conn-dot { box-shadow: 0 0 6px var(--green); animation: glow-pulse 2s infinite; }
+@keyframes glow-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ─── CONTENT ────────────────────────────────────────── */
+.content {
+  flex: 1; padding: 32px 28px;
+  max-width: 1100px; width: 100%; margin: 0 auto;
+  animation: fadein .3s ease;
+}
+@keyframes fadein { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+.page-head { margin-bottom: 24px; }
+.page-title { font-family: var(--fh); font-size: 28px; font-weight: 700; letter-spacing: 1px; line-height: 1; margin-bottom: 6px; }
+.page-sub { font-size: 13px; color: var(--t3); font-family: var(--fm); }
+
+/* ─── STAT ROW ───────────────────────────────────────── */
+.stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 22px; }
+
+.stat-chip {
+  background: var(--card); border: 1px solid var(--bd);
+  border-radius: var(--r); padding: 14px 16px;
+  position: relative; overflow: hidden;
+}
+.stat-chip::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--bd2);
+}
+.stat-chip.green::after { background: var(--green); }
+.stat-chip.red::after   { background: var(--red); }
+.stat-chip.amber::after { background: var(--amber); }
+.stat-chip.accent::after{ background: var(--accent); }
+.stat-lbl { font-family: var(--fm); font-size: 10px; color: var(--t3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.stat-val { font-family: var(--fh); font-size: 30px; font-weight: 700; line-height: 1; margin-bottom: 2px; }
+.stat-chip.green .stat-val { color: var(--green); }
+.stat-chip.red   .stat-val { color: var(--red); }
+.stat-chip.amber .stat-val { color: var(--amber); }
+.stat-chip.accent .stat-val{ color: var(--accent); }
+.stat-hint { font-size: 11px; color: var(--t3); }
+
+/* ─── GRID ───────────────────────────────────────────── */
+.dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media(max-width:860px) { .dash-grid { grid-template-columns: 1fr; } .stat-row { grid-template-columns: repeat(2,1fr); } }
+
+/* ─── CARDS ──────────────────────────────────────────── */
+.card { background: var(--card); border: 1px solid var(--bd); border-radius: var(--r); overflow: hidden; }
+
+.card-head {
+  padding: 14px 18px 13px; border-bottom: 1px solid var(--bd);
+  display: flex; align-items: center; gap: 10px;
+}
+.card-head-icon {
+  width: 30px; height: 30px; border-radius: var(--rs);
+  background: var(--accent-g); border: 1px solid rgba(59,130,246,.2);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.card-head-icon svg { width: 14px; height: 14px; color: var(--accent); }
+.card-title { font-family: var(--fh); font-size: 15px; font-weight: 600; letter-spacing: .5px; flex: 1; }
+.card-badge {
+  font-family: var(--fm); font-size: 9px; padding: 2px 8px;
+  border-radius: 10px; text-transform: uppercase; letter-spacing: .5px;
+}
+.card-badge.ok  { color: var(--green); background: var(--green-g); border: 1px solid var(--green-bd); }
+.card-badge.off { color: var(--t3);    background: var(--surface);  border: 1px solid var(--bd); }
+
+.card-body { padding: 18px; }
+
+/* ─── LOCKER GRID ────────────────────────────────────── */
+.locker-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; }
+
+.locker-box {
+  aspect-ratio: 1.15;
+  border-radius: var(--r);
+  border: 1px solid var(--bd);
+  background: var(--surface);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s;
+  position: relative; overflow: hidden;
+  user-select: none;
+}
+.locker-box::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--green); transition: background .2s;
+}
+.locker-box.occupied::before { background: var(--red); }
+.locker-box.selected::before { background: var(--accent); }
+
+.locker-box:hover { border-color: var(--bd2); background: var(--card-h); transform: translateY(-2px); }
+.locker-box.selected { border-color: var(--accent); background: var(--accent-g); }
+.locker-box.occupied { border-color: var(--red-bd); }
+.locker-box.occupied:hover { background: rgba(244,63,94,.06); }
+
+.locker-id {
+  font-family: var(--fh); font-size: 32px; font-weight: 700;
+  letter-spacing: 2px; line-height: 1; margin-bottom: 8px;
+}
+.locker-box.selected .locker-id { color: var(--accent); }
+.locker-box.occupied .locker-id { color: var(--red); }
+
+.locker-status-badge {
+  font-family: var(--fm); font-size: 10px; padding: 3px 10px;
+  border-radius: 20px; text-transform: uppercase; letter-spacing: .5px;
+}
+.locker-box:not(.occupied) .locker-status-badge { color: var(--green); background: var(--green-g); border: 1px solid var(--green-bd); }
+.locker-box.occupied .locker-status-badge       { color: var(--red);   background: var(--red-g);   border: 1px solid var(--red-bd); }
+.locker-box.selected:not(.occupied) .locker-status-badge { color: var(--accent); background: var(--accent-g); border-color: rgba(59,130,246,.25); }
+
+.locker-lock-icon {
+  position: absolute; top: 10px; right: 10px;
+  width: 18px; height: 18px; color: var(--t3); opacity: .5;
+}
+.locker-box.occupied .locker-lock-icon  { color: var(--red);   opacity: .7; }
+.locker-box.selected .locker-lock-icon  { color: var(--accent); opacity: .8; }
+
+/* ─── TELEMETRY PANEL ────────────────────────────────── */
+.tele-card { animation: fadein .25s ease; }
+
+.tele-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 0; border-bottom: 1px solid var(--bd); gap: 12px;
+}
+.tele-row:last-child { border-bottom: none; }
+
+.tele-lbl {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--t2); font-size: 13px;
+}
+.tele-lbl svg { width: 14px; height: 14px; color: var(--t3); flex-shrink: 0; }
+
+.tele-val {
+  font-family: var(--fm); font-size: 13px; font-weight: 500;
+  color: var(--t1); display: flex; align-items: center; gap: 6px;
+}
+.tele-val.loading { color: var(--t3); animation: blink 1.2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+.tele-led { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.tele-led.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.tele-led.red   { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+.tele-led.amber { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+
+/* ─── CONTROLS ───────────────────────────────────────── */
+.controls { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--bd); }
+
+.btn {
+  padding: 9px 16px; border-radius: var(--rs); font-size: 13px;
+  cursor: pointer; border: 1px solid; transition: all .15s;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  font-family: var(--fb); font-weight: 500; user-select: none;
+}
+.btn:disabled { opacity: .35; cursor: not-allowed; }
+.btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+.btn-unlock { flex: 1; background: var(--green-g); border-color: var(--green-bd); color: var(--green); }
+.btn-unlock:hover:not(:disabled) { background: rgba(34,197,94,.18); }
+.btn-lock   { flex: 1; background: var(--red-g);   border-color: var(--red-bd);   color: var(--red); }
+.btn-lock:hover:not(:disabled)   { background: rgba(244,63,94,.18); }
+
+/* ─── ACTIVITY LOG ───────────────────────────────────── */
+.log-list { display: flex; flex-direction: column; gap: 0; }
+.log-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--bd); }
+.log-item:last-child { border-bottom: none; }
+.log-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.log-msg  { font-size: 12px; color: var(--t2); line-height: 1.4; }
+.log-time { font-family: var(--fm); font-size: 10px; color: var(--t3); margin-top: 2px; }
+
+/* ─── EMPTY STATE ────────────────────────────────────── */
+.empty-panel {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 10px; padding: 36px 20px;
+  color: var(--t3); text-align: center;
+}
+.empty-panel svg { width: 36px; height: 36px; opacity: .25; }
+.empty-panel p { font-size: 12px; line-height: 1.6; max-width: 200px; }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── SIDEBAR ─────────────────────────────────────────── -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <div class="sidebar-logo">SMART<span>.</span>LOCK</div>
+      <button class="sidebar-close" id="sidebarClose">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="nav-links">
+      <div class="nav-sep">Monitor</div>
+      <a href="main.html" class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        Home Console
+      </a>
+      <div class="nav-sep">Setup</div>
+      <a href="connect.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/>
+          <line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+        </svg>
+        Connect System
+      </a>
+      <a href="schedule.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        Schedule Matrix
+      </a>
+    </div>
+    <div class="nav-foot">
+      <span class="nav-foot-dot" id="navDot"></span>
+      <span id="navFootText">Not connected</span>
+    </div>
+  </nav>
+
+  <div class="overlay" id="overlay"></div>
+
+  <!-- ── MAIN ───────────────────────────────────────────── -->
+  <div class="main">
+    <header class="topbar">
+      <button class="hbg" id="hbg" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="topbar-logo">SMART<span>.</span>LOCK</div>
+      <div class="topbar-sep"></div>
+      <div class="topbar-page">Home Console</div>
+      <div class="conn-pill off" id="connPill">
+        <span class="conn-dot"></span>
+        <span id="connPillText">Disconnected</span>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="page-head">
+        <div class="page-title">System Overview</div>
+        <div class="page-sub">Real-time compartment status and sensor telemetry</div>
+      </div>
+
+      <!-- Stat row -->
+      <div class="stat-row">
+        <div class="stat-chip green">
+          <div class="stat-lbl">Available</div>
+          <div class="stat-val" id="stat-avail">1</div>
+          <div class="stat-hint">Ready to use</div>
+        </div>
+        <div class="stat-chip red">
+          <div class="stat-lbl">Occupied</div>
+          <div class="stat-val" id="stat-occ">1</div>
+          <div class="stat-hint">Currently in use</div>
+        </div>
+        <div class="stat-chip amber">
+          <div class="stat-lbl">Avg Temp</div>
+          <div class="stat-val" id="stat-temp">—</div>
+          <div class="stat-hint">DHT-11 average</div>
+        </div>
+        <div class="stat-chip accent">
+          <div class="stat-lbl">Compartments</div>
+          <div class="stat-val">2</div>
+          <div class="stat-hint">Total units</div>
+        </div>
+      </div>
+
+      <div class="dash-grid">
+
+        <!-- ── COMPARTMENT CARD ─────────────────────────── -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-head-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2"/>
+                <path d="M7 11V7a5 5 0 0110 0v4"/>
+              </svg>
+            </div>
+            <div class="card-title">Compartment Status</div>
+            <span class="card-badge ok">Live</span>
+          </div>
+          <div class="card-body">
+            <div class="locker-grid">
+
+              <div class="locker-box" id="locker-C1" onclick="selectCompartment('C1')">
+                <svg class="locker-lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/>
+                  <path d="M7 11V7a5 5 0 019.9-1"/>
+                </svg>
+                <div class="locker-id">C1</div>
+                <span class="locker-status-badge" id="status-C1">Available</span>
+              </div>
+
+              <div class="locker-box occupied" id="locker-C2" onclick="selectCompartment('C2')">
+                <svg class="locker-lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/>
+                  <path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+                <div class="locker-id">C2</div>
+                <span class="locker-status-badge" id="status-C2">45m left</span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ── TELEMETRY CARD ───────────────────────────── -->
+        <div class="card tele-card" id="telemetry-card">
+          <div class="card-head">
+            <div class="card-head-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+            </div>
+            <div class="card-title" id="telemetry-title">Select a Compartment</div>
+            <span class="card-badge off" id="tele-badge">Idle</span>
+          </div>
+          <div class="card-body">
+
+            <!-- Empty state -->
+            <div class="empty-panel" id="tele-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <p>Click a compartment on the left to view its sensor telemetry and controls.</p>
+            </div>
+
+            <!-- Data rows (hidden until selected) -->
+            <div id="tele-data" class="hidden">
+              <div class="tele-row">
+                <div class="tele-lbl">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 14.76V3.5a2.5 2.5 0 00-5 0v11.26a4.5 4.5 0 105 0z"/>
+                  </svg>
+                  Temperature (DHT-11)
+                </div>
+                <div class="tele-val loading" id="temp-val">— °C</div>
+              </div>
+              <div class="tele-row">
+                <div class="tele-lbl">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/>
+                  </svg>
+                  Humidity (DHT-11)
+                </div>
+                <div class="tele-val loading" id="hum-val">— %</div>
+              </div>
+              <div class="tele-row">
+                <div class="tele-lbl">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 3h6m-6 0v6l-5 8.5A1 1 0 005 19h14a1 1 0 00.86-1.5L15 9V3"/>
+                  </svg>
+                  Alcohol Sensor
+                </div>
+                <div class="tele-val loading" id="alc-val">— ppm</div>
+              </div>
+              <div class="tele-row">
+                <div class="tele-lbl">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 12V6H4v6"/><path d="M4 12a8 8 0 0016 0"/>
+                  </svg>
+                  Magnetic Sensor
+                </div>
+                <div class="tele-val" id="mag-val">
+                  <span class="tele-led green" id="mag-led"></span>
+                  <span id="mag-text">Secured</span>
+                </div>
+              </div>
+              <div class="tele-row">
+                <div class="tele-lbl">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                  Servo Motor
+                </div>
+                <div class="tele-val" id="servo-val">
+                  <span style="color:var(--t2)" id="servo-text">90° — Locked</span>
+                </div>
+              </div>
+
+              <div class="controls">
+                <button class="btn btn-unlock" onclick="triggerDoor('open')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/>
+                    <path d="M7 11V7a5 5 0 019.9-1"/>
+                  </svg>
+                  Open Compartment
+                </button>
+                <button class="btn btn-lock" onclick="triggerDoor('close')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/>
+                    <path d="M7 11V7a5 5 0 0110 0v4"/>
+                  </svg>
+                  Lock &amp; Secure
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── ACTIVITY LOG ─────────────────────────────── -->
+        <div class="card" style="grid-column:1/-1">
+          <div class="card-head">
+            <div class="card-head-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+            </div>
+            <div class="card-title">Activity Log</div>
+            <span class="card-badge ok" id="log-badge">Live</span>
+          </div>
+          <div class="card-body">
+            <div class="log-list" id="log-list">
+              <div class="log-item">
+                <span class="log-dot" style="background:var(--red)"></span>
+                <div>
+                  <div class="log-msg">C2 — Locker occupied, solenoid engaged</div>
+                  <div class="log-time">12m ago</div>
+                </div>
+              </div>
+              <div class="log-item">
+                <span class="log-dot" style="background:var(--green)"></span>
+                <div>
+                  <div class="log-msg">C1 — Session ended, compartment now available</div>
+                  <div class="log-time">34m ago</div>
+                </div>
+              </div>
+              <div class="log-item">
+                <span class="log-dot" style="background:var(--accent)"></span>
+                <div>
+                  <div class="log-msg">System — HTTP polling started (5s interval)</div>
+                  <div class="log-time">1h ago</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /dash-grid -->
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<script>
+// ── Sidebar ────────────────────────────────────────────
+const hbg      = document.getElementById('hbg');
+const sidebar  = document.getElementById('sidebar');
+const overlay  = document.getElementById('overlay');
+const closeBtn = document.getElementById('sidebarClose');
+
+function openSidebar()  { sidebar.classList.add('open');    overlay.classList.add('show');    hbg.classList.add('open'); }
+function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('show'); hbg.classList.remove('open'); }
+
+hbg.addEventListener('click', () => sidebar.classList.contains('open') ? closeSidebar() : openSidebar());
+overlay.addEventListener('click', closeSidebar);
+closeBtn.addEventListener('click', closeSidebar);
+
+// ── Connection state (from sessionStorage) ─────────────
+const connPill     = document.getElementById('connPill');
+const connPillText = document.getElementById('connPillText');
+const navDot       = document.getElementById('navDot');
+const navFootText  = document.getElementById('navFootText');
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (sessionStorage.getItem('esp_connected') === 'true') {
+    const id = sessionStorage.getItem('esp_id') || 'ESP32';
+    connPill.classList.replace('off', 'on');
+    connPillText.textContent = id;
+    navDot.classList.add('on');
+    navFootText.textContent = id;
+  }
+});
+
+// ── State ──────────────────────────────────────────────
+const ESP32_URL = 'http://192.168.1.100';
+let activeComp  = null;
+const doorStates = { C1: true, C2: true };   // true = locked/secured
+const mockData = {
+  C1: { temperature: 24.5, humidity: 58,   alcohol: 0  },
+  C2: { temperature: 27.2, humidity: 65,   alcohol: 15 },
+};
+
+// ── Select compartment ─────────────────────────────────
+function selectCompartment(id) {
+  activeComp = id;
+
+  document.querySelectorAll('.locker-box').forEach(b => b.classList.remove('selected'));
+  document.getElementById(`locker-${id}`).classList.add('selected');
+
+  document.getElementById('telemetry-title').textContent = `Telemetry — ${id}`;
+  document.getElementById('tele-badge').className = 'card-badge ok';
+  document.getElementById('tele-badge').textContent = 'Active';
+  document.getElementById('tele-empty').classList.add('hidden');
+  document.getElementById('tele-data').classList.remove('hidden');
+
+  loadTelemetry(id);
+}
+
+function loadTelemetry(id) {
+  ['temp-val','hum-val','alc-val'].forEach(el => {
+    const node = document.getElementById(el);
+    node.textContent = '…';
+    node.classList.add('loading');
+  });
+  updateMagnetic(doorStates[id]);
+  updateServo(doorStates[id]);
+
+  fetch(`${ESP32_URL}/api/telemetry?comp=${id}`)
+    .then(r => r.json())
+    .then(d => applyTelemetry(d))
+    .catch(() => setTimeout(() => applyTelemetry(mockData[id]), 400));
+}
+
+function applyTelemetry(d) {
+  const set = (id, text, color) => {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.classList.remove('loading');
+    if (color) el.style.color = color;
+  };
+  const temp = d.temperature ?? d.temp;
+  const hum  = d.humidity   ?? d.hum;
+  const alc  = d.alcohol    ?? d.alc;
+
+  set('temp-val', `${temp} °C`, temp > 30 ? 'var(--amber)' : 'var(--t1)');
+  set('hum-val',  `${hum} %`,  hum > 70  ? 'var(--amber)' : 'var(--t1)');
+  set('alc-val',  `${alc} ppm`, alc > 50  ? 'var(--red)'   : alc > 15 ? 'var(--amber)' : 'var(--green)');
+
+  // update stat row averages
+  const temps = Object.values(mockData).map(x => x.temperature);
+  document.getElementById('stat-temp').textContent =
+    (temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1);
+}
+
+// ── Door hardware ──────────────────────────────────────
+function triggerDoor(action) {
+  if (!activeComp) return;
+  const closing = action === 'close';
+  doorStates[activeComp] = closing;
+
+  fetch(`${ESP32_URL}/api/door?comp=${activeComp}&action=${action}`, { method: 'POST' })
+    .catch(() => {});
+
+  updateMagnetic(closing);
+  updateServo(closing);
+  pushLog(
+    `${activeComp} — ${closing ? 'Locked & secured' : 'Unlocked, door open'}`,
+    closing ? 'var(--green)' : 'var(--red)'
+  );
+}
+
+function updateMagnetic(secured) {
+  const led  = document.getElementById('mag-led');
+  const text = document.getElementById('mag-text');
+  if (secured) {
+    led.className  = 'tele-led green';
+    text.textContent = 'Secured (Magnet OK)';
+    text.style.color = 'var(--green)';
+  } else {
+    led.className  = 'tele-led red';
+    text.textContent = 'Open — No Magnet ⚠';
+    text.style.color = 'var(--red)';
+  }
+}
+
+function updateServo(locked) {
+  const el = document.getElementById('servo-text');
+  el.textContent = locked ? '90° — Locked' : '0° — Released';
+  el.style.color = locked ? 'var(--t2)' : 'var(--amber)';
+}
+
+// ── Activity log ───────────────────────────────────────
+function pushLog(msg, color) {
+  const list = document.getElementById('log-list');
+  const item = document.createElement('div');
+  item.className = 'log-item';
+  item.style.animation = 'fadein .2s ease';
+  item.innerHTML = `
+    <span class="log-dot" style="background:${color}"></span>
+    <div>
+      <div class="log-msg">${msg}</div>
+      <div class="log-time">just now</div>
+    </div>`;
+  list.prepend(item);
+  if (list.children.length > 8) list.lastElementChild.remove();
+}
+</script>
+</body>
+</html>
