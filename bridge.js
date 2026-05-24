@@ -126,3 +126,19 @@ async function handleClaim(lockerId, data) {
         console.log(`⚠️ Wrong PIN entered for Locker ${lockerId}`);
     }
 }
+
+const http = require('http');
+
+// 1. Create a minimal web server to satisfy Render's health checks
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('iKaha Backend Bridge is Active and Running!\n');
+});
+
+// 2. Render automatically injects a PORT variable into system environment memory
+const PORT = process.env.PORT || 3000;
+
+// 3. Listen on the designated port
+server.listen(PORT, () => {
+  console.log(`🌍 Health check web server is listening on port ${PORT}`);
+});
