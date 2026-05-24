@@ -127,18 +127,17 @@ async function handleClaim(lockerId, data) {
     }
 }
 
-const http = require('http');
+// 1. Change 'require' to modern ES 'import' syntax
+import http from 'http';
 
-// 1. Create a minimal web server to satisfy Render's health checks
+// 2. Create the minimal web server to satisfy Render's health checks
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('iKaha Backend Bridge is Active and Running!\n');
 });
 
-// 2. Render automatically injects a PORT variable into system environment memory
+// 3. Bind to the port provided by Render
 const PORT = process.env.PORT || 3000;
-
-// 3. Listen on the designated port
 server.listen(PORT, () => {
   console.log(`🌍 Health check web server is listening on port ${PORT}`);
 });
