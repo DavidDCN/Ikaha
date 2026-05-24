@@ -11,19 +11,25 @@ process.on('uncaughtException', (err) => {
     process.exit(1);
 });
 
-dotenv.config();
+dotenv.config(); // Loads a local .env if present
 
-// Validate environment variables are parsing
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    console.error("❌ Configuration Error: Missing SUPABASE variables in .env file!");
+// Clean validation: Check process.env directly, which works on both local and Render!
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const mqttBrokerUrl = process.env.MQTT_BROKER_URL;
+
+if (!supabaseUrl || !supabaseKey) {
+    console.error("❌ Configuration Error: Missing SUPABASE variables in system environment!");
     process.exit(1);
 }
-if (!process.env.MQTT_BROKER_URL) {
-    console.error("❌ Configuration Error: Missing MQTT_BROKER_URL variable in .env file!");
+if (!mqttBrokerUrl) {
+    console.error("❌ Configuration Error: Missing MQTT broker variable in system environment!");
     process.exit(1);
 }
 
-console.log("🔗 Connecting to Supabase at:", process.env.SUPABASE_URL);
+console.log("✅ Environment validation passed successfully.");
+
+console.log("🔗 Connecting to Supabase at:", supabaseUrl);
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 console.log("📡 Attempting connection to MQTT Broker:", process.env.MQTT_BROKER_URL);
