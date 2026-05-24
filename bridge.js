@@ -1,4 +1,4 @@
-import dotenv from 'dotenv';
+import dotenv from '@dotenvx/dotenvx';
 import mqtt from 'mqtt';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
