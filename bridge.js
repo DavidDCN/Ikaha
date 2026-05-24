@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import mqtt from 'mqtt';
 import { createClient } from '@supabase/supabase-js';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 
 console.log("▶️ Initializing Locker Backend Bridge...");
 
