@@ -57,18 +57,109 @@ mqttClient.on('close', () => {
 });
 
 mqttClient.on('message', async (topic, message) => {
-    const lockerId = parseInt(topic.split('/')[1]);
-    try {
-        const payload = JSON.parse(message.toString());
-        console.log(`📥 Ingested data on topic [${topic}]:`, payload);
-        if (topic.endsWith('/deposit')) {
-            await handleDeposit(lockerId, payload);
-        } else if (topic.endsWith('/claim')) {
-            await handleClaim(lockerId, payload);
-        }
-    } catch (error) {
-        console.error(`❌ Error parsing structural payload:`, error.message);
+  try {
+    const payload = JSON.parse(message.toString());
+    const lockerId = topic.split('/')[1];
+
+    // ==========================================
+    // 🔒 DEPOSIT FLOW
+    // ==========================================
+    if (topic.endsWith('/deposit')) {
+      console.log(`📥 Ingested deposit payload for locker ${lockerId}`);
+
+      // Extract details, providing fallback defaults if fields are missing
+      const studentName = payload.studentName || 'Unknown Admin/User';
+      const studentNumber = payload.studentNumber || 'N/A';
+      const courseSection = payload.courseSection || 'N/A';
+      const rawPin = payload.pin;
+
+      if (!rawPin) {
+        console.error("❌ Drop canceled: No PIN provided in payload.");
+        return;
+      }
+
+      // 1. Hash the PIN
+      const salt = await bcrypt.genSalt(10);
+      const hashedPin = await bcrypt.hash(rawPin, salt);
+
+      // 2. Insert into Supabase (Matching your column names)
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert([
+          { 
+            locker_id: lockerId, 
+            student_name: studentName, 
+            student_number: studentNumber, 
+            course_section: courseSection,
+            pin_hash: hashedPin, 
+            status: 'active',
+            created_at: new Date()
+          }
+        ]);
+
+      if (error) {
+        console.error("❌ Supabase DB Insert Failed:", error.message);
+        return;
+      }
+
+      // 3. Mark locker as occupied
+      await supabase
+        .from('lockers')
+        .update({ is_occupied: true })
+        .eq('id', lockerId);
+
+      console.log(`🔒 Locker ${lockerId} successfully occupied by ${studentNumber}`);
     }
+
+    // ==========================================
+    // 🔓 CLAIM (VACANTING) FLOW
+    // ==========================================
+    if (topic.endsWith('/claim')) {
+      console.log(`📥 Ingested claim payload for locker ${lockerId}`);
+      const typedPin = payload.pin;
+
+      // 1. Find the active transaction for this locker
+      const { data: transaction, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('locker_id', lockerId)
+        .eq('status', 'active')
+        .maybeSingle(); // Prevents crashing if 0 rows are found
+
+      if (error || !transaction) {
+        console.log(`⚠️ Claim attempt on empty or error locker slot ${lockerId}`);
+        mqttClient.publish(`lockers/${lockerId}/control`, JSON.stringify({ command: "DENIED", reason: "Slot vacant" }));
+        return;
+      }
+
+      // 2. Validate PIN
+      const isMatch = await bcrypt.compare(typedPin, transaction.pin_hash);
+
+      if (isMatch) {
+        // 3. SUCCESS! Update the transaction to completed
+        await supabase
+          .from('transactions')
+          .update({ status: 'completed', claimed_at: new Date() })
+          .eq('id', transaction.id);
+
+        // 4. THIS IS THE "VACANTING" STEP: Set locker status back to false
+        await supabase
+          .from('lockers')
+          .update({ is_occupied: false })
+          .eq('id', lockerId);
+
+        // 5. Fire MQTT unlock command to ESP32
+        mqttClient.publish(`lockers/${lockerId}/control`, JSON.stringify({ command: "UNLOCK" }));
+        console.log(`🔓 SUCCESS: Locker ${lockerId} is now VACANT. Unlock payload sent.`);
+      } else {
+        console.log(`❌ Invalid PIN attempt for Locker ${lockerId}`);
+        mqttClient.publish(`lockers/${lockerId}/control`, JSON.stringify({ command: "DENIED", reason: "Wrong PIN" }));
+      }
+    }
+
+  } catch (err) {
+    console.error("💥 General Parsing Error:", err);
+  }
 });
 
 async function handleDeposit(lockerId, data) {
