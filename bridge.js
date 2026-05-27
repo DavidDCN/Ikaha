@@ -44,8 +44,8 @@ const mqttClient = mqtt.connect(mqttBrokerUrl, {
 
 mqttClient.on('connect', () => {
     console.log('🚀 SUCCESS: Connected to Secure MQTT Broker! Listening for locker payloads...');
-    mqttClient.subscribe('lockers/+/deposit');
-    mqttClient.subscribe('lockers/+/claim');
+    mqttClient.subscribe('lockers/+/deposit', { qos: 2 });
+    mqttClient.subscribe('lockers/+/claim', { qos: 2 });
 });
 
 mqttClient.on('error', (err) => {
